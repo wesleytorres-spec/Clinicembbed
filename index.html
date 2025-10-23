@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embedded TEA • Cirurgia e Internação (v2.5.0)</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link href="embedded_tea_theme.css" rel="stylesheet">
+
+<style>
+  .shadow-soft{ box-shadow:0 6px 18px rgba(0,0,0,.06); border:1px solid #eef2f1; border-radius:.75rem; background:#fff; }
+  .section-cap{ background:#f4f8f7; color:#2f5b53; font-weight:600; padding:.35rem .5rem; border-radius:.5rem; border:1px solid #e3eeea; }
+  .fast-badge{ background:#ffe8cc; color:#7a3d00; border:1px solid #ffd7a1; padding:.2rem .5rem; border-radius:999px; font-weight:700; font-size:.75rem;}
+  .money{ white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .br-soft{ border-radius:.75rem; }
+  /* Tabelas compactas de kits (tela e modal) */
+  .kit-compact .table th, .kit-compact .table td{ vertical-align:middle; }
+  .kit-compact .kit-name{ color:#004e4c; font-weight:600; }
+  .kit-compact .count-badge{
+    background:#eef6f3; border:1px solid #d6ebe3; color:#0b5d4b;
+    border-radius:999px; padding:.15rem .5rem; font-weight:700; font-size:.75rem;
+  }
+  /* Assinatura */
+  .sig-box{ background:#fff; border:1px dashed #cfe5dd; border-radius:.5rem; height:180px; position:relative; }
+  .sig-box canvas{ width:100%; height:100%; display:block; border-radius:.5rem; }
+  .sig-hint{ position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); color:#89a9a0; text-align:center; pointer-events:none; }
+</style>
+</head>
+<body style="background:#f7f9f9">
+<div class="container-fluid py-3">
+
+  <!-- HEADER -->
+  <div class="module-header">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-hospital text-uni fs-4"></i>
+      <div>
+        <h4 class="mb-0" style="color:#004e4c;font-weight:600;">Solicitação de Cirurgia e Internação</h4>
+        <div class="text-secondary-uni small">Embedded TEA • Unimed Sorocaba</div>
+      </div>
+    </div>
+    <span class="version-badge">v2.5.0</span>
+  </div>
+
+  <!-- ABAS -->
+  <ul class="nav nav-tabs">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-solic"><i class="bi bi-ui-checks-grid me-1"></i>Solicitação</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-mp"><i class="bi bi-archive me-1"></i>Materiais & Protocolos</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-avc"><i class="bi bi-clipboard2-check me-1"></i>Avaliação & Consentimento</button></li>
+  </ul>
+
+  <div class="tab-content pt-3">
+    <!-- ================= SOLICITAÇÃO ================= -->
+    <div class="tab-pane fade show active" id="tab-solic">
+      <!-- Procedimentos -->
+      <div class="card shadow-soft p-3 mb-3">
+        <h6 class="form-section-title"><i class="bi bi-list-check me-2"></i>Procedimento(s)</h6>
+        <div class="row g-2 align-items-end">
+          <div class="col-lg-6">
+            <label class="form-label">Selecionar procedimento</label>
+            <select id="procCombo" class="form-select">
+              <option value="">Selecione</option>
+              <option>ARTROSCOPIA JOELHO</option>
+            </select>
+          </div>
+          <div class="col-lg-6">
+            <label class="form-label">Ou digite outro procedimento</label>
+            <div class="input-group">
+              <input id="procSearch" class="form-control" placeholder="Digite para pesquisar...">
+              <input id="procQty" type="number" min="1" value="1" class="form-control" style="max-width:120px">
+              <button id="btnAddProc" class="btn btn-outline-uni"><i class="bi bi-plus-lg me-1"></i>Adicionar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sugestões de kits (compacta) -->
+        <div id="sugKitsWrap" class="mt-3 kit-compact" style="display:none;">
+          <div class="section-cap mb-2">
+            <i class="bi bi-lightbulb me-1"></i>
+            Sugestões de kits para <b>ARTROSCOPIA JOELHO</b>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" id="sugKitsTable">
+              <thead>
+                <tr>
+                  <th>Kit</th>
+                  <th style="width:110px" class="text-center">Itens</th>
+                  <th style="width:220px" class="text-end">Ações</th>
+                </tr>
+              </thead>
+              <tbody><!-- via JS --></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="table-responsive mt-3">
+          <table class="table table-sm align-middle" id="tblProcs">
+            <thead><tr><th>Procedimento</th><th style="width:10%">Qtde</th><th style="width:30%">Observação</th><th class="text-end" style="width:12%">Ações</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- OPME -->
+      <div class="card shadow-soft p-3 mb-3">
+        <h6 class="form-section-title"><i class="bi bi-box me-2"></i>OPME</h6>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="switchOPME">
+          <label class="form-check-label" for="switchOPME"><strong>Usa OPME?</strong></label>
+        </div>
+
+        <div id="opmeArea" class="mt-3" style="display:none;">
+          <div class="alert alert-uni d-flex align-items-center justify-content-between br-soft">
+            <span class="title"><i class="bi bi-search-heart me-2"></i>Busca de OPME em modal</span>
+            <button id="btnAbrirBusca" class="btn btn-uni btn-sm"><i class="bi bi-search me-1"></i>Buscar itens OPME</button>
+          </div>
+
+          <h6 class="form-section-title mt-3"><i class="bi bi-clipboard2-check me-2"></i>Itens do pedido (OPME)</h6>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle" id="tblOpme">
+              <thead><tr><th>Item</th><th>Código</th><th>Fabricante</th><th>Tipo</th><th style="width:110px">Qtde</th><th class="text-end" style="width:60px">Ações</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dados da Solicitação -->
+      <div class="card shadow-soft p-3 mb-3">
+        <h6 class="form-section-title"><i class="bi bi-file-earmark-medical me-2"></i>Dados da Solicitação</h6>
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label">Indicação Clínica</label><textarea id="indicacao" class="form-control" rows="2" maxlength="500"></textarea></div>
+          <div class="col-md-6"><label class="form-label">Observação</label><textarea id="observacao" class="form-control" rows="2" maxlength="500"></textarea></div>
+        </div>
+        <div class="row g-3 mt-1">
+          <div class="col-md-3"><label class="form-label">CID</label><input id="cid" class="form-control" placeholder="Código ou descrição"></div>
+          <div class="col-md-2"><label class="form-label">Data Internação</label><input id="dtInter" type="date" class="form-control"></div>
+          <div class="col-md-2"><label class="form-label">Hora</label><input id="hrInter" type="time" class="form-control"></div>
+          <div class="col-md-2"><label class="form-label">Diárias</label><input id="diarias" type="number" min="0" value="0" class="form-control"></div>
+          <div class="col-md-3"><label class="form-label">Local — Hospital</label><input id="localHosp" class="form-control" placeholder="Pesquisar unidade..."></div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button class="btn btn-uni" id="btnSalvar"><i class="bi bi-save me-2"></i>Salvar</button>
+        <button class="btn btn-outline-uni" id="btnLimpar"><i class="bi bi-trash3 me-2"></i>Limpar</button>
+      </div>
+    </div>
+
+    <!-- ================= MATERIAIS & PROTOCOLOS ================= -->
+    <div class="tab-pane fade" id="tab-mp">
+      <div class="row g-3">
+        <div class="col-lg-7">
+          <div class="card shadow-soft p-3 h-100">
+            <h6 class="form-section-title"><i class="bi bi-boxes me-2"></i>Materiais padronizados (kits)</h6>
+            <div class="row g-2 mb-2">
+              <div class="col-md-5"><label class="form-label">Especialidade</label><select id="mpEsp" class="form-select"><option value="">Todas</option></select></div>
+              <div class="col-md-7"><label class="form-label">Busca</label><input id="mpBusca" class="form-control" placeholder="Filtrar por kit ou item..."></div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblKits">
+                <thead><tr><th>Kit</th><th>Especialidade</th><th>Itens</th><th class="text-end">Ações</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="text-secondary-uni small">Clique em <b>Ver composição</b> para detalhes (somente leitura) ou <b>Aplicar</b> para enviar ao pedido OPME.</div>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="card shadow-soft p-3 h-100">
+            <h6 class="form-section-title"><i class="bi bi-journal-medical me-2"></i>Protocolos</h6>
+            <input id="protoBusca" class="form-control mb-2" placeholder="Filtrar por nome/tema...">
+            <ul id="listaProtocolos" class="list-group list-group-flush"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= AVALIAÇÃO & CONSENTIMENTO ================= -->
+    <div class="tab-pane fade" id="tab-avc">
+      <div class="row g-3">
+        <!-- Avaliação -->
+        <div class="col-lg-7">
+          <div class="card shadow-soft p-3">
+            <h6 class="form-section-title"><i class="bi bi-clipboard2-pulse me-2"></i>Avaliação Pré-Cirúrgica</h6>
+            <div class="row g-2">
+              <div class="col-md-6"><label class="form-label">Nome</label><input id="av_nome" class="form-control"></div>
+              <div class="col-md-3"><label class="form-label">Data de Nascimento</label><input id="av_dt_nasc" type="date" class="form-control"></div>
+              <div class="col-md-3"><label class="form-label">Sexo</label><select id="av_sexo" class="form-select"><option>Masculino</option><option>Feminino</option><option>Outro</option></select></div>
+            </div>
+            <div class="row g-2 mt-1">
+              <div class="col-md-6"><label class="form-label">Data de Internação</label><input id="av_dt_inter" type="date" class="form-control"></div>
+              <div class="col-md-6"><label class="form-label">Horário de Internação</label><input id="av_hr_inter" type="time" class="form-control"></div>
+            </div>
+            <div class="divider"></div>
+            <label class="form-label">Comorbidades?</label>
+            <div class="row g-2">
+              <div class="col-6 col-md-4"><div class="form-check"><input class="form-check-input" id="cm_hip" type="checkbox"><label class="form-check-label" for="cm_hip">Hipertensão</label></div></div>
+              <div class="col-6 col-md-4"><div class="form-check"><input class="form-check-input" id="cm_dm" type="checkbox"><label class="form-check-label" for="cm_dm">Diabetes</label></div></div>
+              <div class="col-6 col-md-4"><div class="form-check"><input class="form-check-input" id="cm_cardio" type="checkbox"><label class="form-check-label" for="cm_cardio">Cardiopatia</label></div></div>
+              <div class="col-6 col-md-4"><div class="form-check"><input class="form-check-input" id="cm_obes" type="checkbox"><><label class="form-check-label" for="cm_obes">Obesidade</label></div></div>
+              <div class="col-6 col-md-4"><div class="form-check"><input class="form-check-input" id="cm_hipot" type="checkbox"><label class="form-check-label" for="cm_hipot">Hipotireoidismo</label></div></div>
+              <div class="col-12 col-md-8 d-flex align-items-center">
+                <div class="form-check me-2"><input class="form-check-input" id="cm_outros" type="checkbox"><label class="form-check-label" for="cm_outros">Outros</label></div>
+                <input id="cm_outros_txt" class="form-control" placeholder="Quais?">
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="row g-2 align-items-end">
+              <div class="col-md-3">
+                <label class="form-label d-block">Alergias?</label>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="alerg" id="alerg_sim" value="Sim"><label class="form-check-label" for="alerg_sim">Sim</label></div>
+                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="alerg" id="alerg_nao" value="Não"><label class="form-check-label" for="alerg_nao">Não</label></div>
+              </div>
+              <div class="col-md-9"><label class="form-label">Qual?</label><input id="alerg_qual" class="form-control"></div>
+            </div>
+            <div class="divider"></div>
+            <label class="form-label">Outros Fatores</label>
+            <div class="row g-2">
+              <div class="col-6 col-md-4"><div class="form-check"><input id="fat_etil" class="form-check-input" type="checkbox"><label class="form-check-label" for="fat_etil">Etilismo</label></div></div>
+              <div class="col-6 col-md-4"><div class="form-check"><input id="fat_tab" class="form-check-input" type="checkbox"><label class="form-check-label" for="fat_tab">Tabagismo</label></div></div>
+              <div class="col-6 col-md-4"><div class="form-check"><input id="fat_droga" class="form-check-input" type="checkbox"><label class="form-check-label" for="fat_droga">Drogas ilícitas</label></div></div>
+            </div>
+            <div class="divider"></div>
+            <label class="form-label">Medicações em Uso</label><textarea id="med_uso" class="form-control" rows="3"></textarea>
+            <div class="divider"></div>
+            <label class="form-label">Hipótese Diagnóstica</label><textarea id="hip_diag" class="form-control" rows="2"></textarea>
+            <div class="divider"></div>
+            <label class="form-label">Cirurgia / Procedimento Planejado</label><input id="proc_plan" class="form-control">
+            <div class="divider"></div>
+            <label class="form-label me-2">Lateralidade:</label>
+            <div class="d-flex flex-wrap gap-3">
+              <div class="form-check"><input class="form-check-input" type="radio" name="lat" id="lat_dir" value="Direito"><label class="form-check-label" for="lat_dir">Direito</label></div>
+              <div class="form-check"><input class="form-check-input" type="radio" name="lat" id="lat_esq" value="Esquerdo"><label class="form-check-label" for="lat_esq">Esquerdo</label></div>
+              <div class="form-check"><input class="form-check-input" type="radio" name="lat" id="lat_na"  value="Não se aplica"><label class="form-check-label" for="lat_na">Não se aplica</label></div>
+            </div>
+            <div class="divider"></div>
+            <label class="form-label">História Clínica / Queixa — Duração</label><textarea id="hist_clin" class="form-control" rows="4"></textarea>
+            <div class="divider"></div>
+            <label class="form-label">Exame Físico</label><textarea id="ex_fis" class="form-control" rows="3"></textarea>
+            <div class="divider"></div>
+            <label class="form-label">Tempo de Permanência Previsto</label><input id="tempo_perm_prev" class="form-control" placeholder="ex.: 2 dias">
+            <div class="divider"></div>
+            <div class="row g-2">
+              <div class="col-md-4"><label class="form-label">Data de Preenchimento</label><input id="dt_preench" type="date" class="form-control"></div>
+              <div class="col-md-8"><label class="form-label">Assinatura do Médico / CRM</label><input id="med_crm" class="form-control" placeholder="Nome do médico — CRM"></div>
+            </div>
+            <div class="row g-2 mt-1">
+              <div class="col-md-8"><label class="form-label">Revalidado por: <span class="text-secondary-uni">(se > 30 dias)</span></label><input id="revalid_por" class="form-control"></div>
+              <div class="col-md-4"><label class="form-label">Data</label><input id="revalid_data" type="date" class="form-control"></div>
+            </div>
+            <div class="divider"></div>
+            <div class="row g-2 align-items-center">
+              <div class="col-md-8">
+                <label class="form-label"><i class="bi bi-filetype-pdf me-1"></i>Formulário oficial (visualização fiel)</label>
+                <div class="btn-group">
+                  <button class="btn btn-outline-uni btn-sm" data-action="viewForm"><i class="bi bi-eye me-1"></i>Visualizar</button>
+                  <a id="downloadForm" class="btn btn-outline-secondary btn-sm" href="#" download>Baixar</a>
+                </div>
+              </div>
+              <div class="col-md-4"><label class="form-label">Anexar formulário preenchido</label><input id="uploadForm" type="file" class="form-control form-control-sm" accept="application/pdf,image/*"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Consentimento -->
+        <div class="col-lg-5">
+          <div class="card shadow-soft p-3 h-100">
+            <h6 class="form-section-title"><i class="bi bi-shield-check me-2"></i>Termo de Consentimento</h6>
+            <div class="mb-2 d-flex gap-2 flex-wrap">
+              <button class="btn btn-outline-uni" id="btnLerTermo"><i class="bi bi-book me-1"></i>Visualizar termo</button>
+              <button class="btn btn-outline-secondary" id="btnCopiarLink"><i class="bi bi-link-45deg me-1"></i>Copiar link</button>
+              <span class="align-self-center small text-secondary-uni">Arquivos: <code>consentimento.pdf</code> e <code>termo.pdf</code>.</span>
+            </div>
+            <div class="card shadow-soft p-2 mb-2">
+              <div class="row g-2">
+                <div class="col-sm-6 d-grid"><button class="btn btn-uni" id="btnSendWhats"><i class="bi bi-whatsapp me-1"></i>Enviar WhatsApp</button></div>
+                <div class="col-sm-6 d-grid"><button class="btn btn-uni" id="btnSendEmail"><i class="bi bi-envelope me-1"></i>Enviar E-mail</button></div>
+              </div>
+            </div>
+            <label class="form-label">Assinatura presencial</label>
+            <div class="sig-box mb-2" id="sigBox"><canvas id="sigPad"></canvas><div class="sig-hint"><i class="bi bi-pen me-1"></i>Assine aqui</div></div>
+            <div class="d-flex gap-2 mb-2">
+              <button class="btn btn-outline-secondary btn-sm" id="sigClear"><i class="bi bi-eraser me-1"></i>Limpar</button>
+              <button class="btn btn-outline-uni btn-sm" id="sigSave"><i class="bi bi-check2-circle me-1"></i>Salvar assinatura</button>
+            </div>
+            <div id="sigPreview" class="text-secondary-uni small"></div>
+            <div class="divider"></div>
+            <label class="form-label">Anexar termo assinado (PDF/Imagem)</label>
+            <input id="uploadTermo" type="file" class="form-control form-control-sm" accept="application/pdf,image/*">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL OPME (duas abas) ===== -->
+<div class="modal fade" id="opmeSearchModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-search me-2"></i>Buscar OPME</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <ul class="nav nav-pills mb-3" role="tablist">
+          <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tabKits"><i class="bi bi-boxes me-1"></i>Kits por procedimento</button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabGeral"><i class="bi bi-list-ul me-1"></i>Lista geral</button></li>
+        </ul>
+        <div class="tab-content">
+          <!-- KITS (compacta) -->
+          <div class="tab-pane fade show active kit-compact" id="tabKits">
+            <div class="row g-2 mb-2">
+              <div class="col-md-5">
+                <label class="form-label">Procedimento</label>
+                <select id="mProc" class="form-select">
+                  <option>ARTROSCOPIA JOELHO</option>
+                </select>
+              </div>
+              <div class="col-md-7">
+                <label class="form-label">Buscar (kit ou item)</label>
+                <input id="mBusca" class="form-control" placeholder="Filtrar por kit ou item...">
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0" id="kitsTable">
+                <thead>
+                  <tr>
+                    <th>Kit</th>
+                    <th style="width:110px" class="text-center">Itens</th>
+                    <th style="width:220px" class="text-end">Ações</th>
+                  </tr>
+                </thead>
+                <tbody><!-- via JS --></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- LISTA GERAL (+ busca) -->
+          <div class="tab-pane fade" id="tabGeral">
+            <div class="row g-2 mb-2">
+              <div class="col-md-6">
+                <label class="form-label">Buscar na lista geral</label>
+                <input id="geralBusca" class="form-control" placeholder="Filtrar por material ou marca...">
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="tblGeral">
+                <thead><tr><th>MATERIAIS</th><th>MARCA</th><th class="text-end">NOVO VALOR</th><th style="width:70px">FAST</th><th class="text-end" style="width:110px">Ação</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="small text-secondary-uni"><i class="bi bi-info-circle me-1"></i>Linhas “TOTAL” são informativas; inclua os itens individualmente.</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-end">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: COMPOSIÇÃO DO KIT ===== -->
+<div class="modal fade" id="kitModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title"><i class="bi bi-eye me-2"></i>Composição do kit</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div id="kitMeta" class="mb-2 text-secondary-uni"></div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Item</th><th>Fabricante</th><th>Referência</th><th class="text-center">Qtd</th></tr></thead>
+            <tbody id="kitModalBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="modalApplyBtn" class="btn btn-uni"><i class="bi bi-box-arrow-in-down-right me-1"></i>Incluir kit na solicitação</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL PDF ===== -->
+<div class="modal fade" id="pdfModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title"><i class="bi bi-file-earmark-pdf me-2"></i><span id="pdfTitle">Documento</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body p-0"><iframe id="pdfFrame" src="" style="width:100%; height:75vh; border:0;"></iframe></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ====== Helpers ====== */
+const $  = (s, c=document)=>c.querySelector(s);
+const $$ = (s, c=document)=>Array.from(c.querySelectorAll(s));
+function toast(msg,type='success'){ const el=document.createElement('div'); el.className="position-fixed bottom-0 end-0 p-3"; el.style.zIndex=1080;
+  const tone=type==='success'?'text-bg-success':type==='warning'?'text-bg-warning':'text-bg-secondary';
+  el.innerHTML=`<div class="toast show ${tone} border-0"><div class="d-flex"><div class="toast-body">${msg}</div><button class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),3000); }
+function openPdf(title,url){ $("#pdfTitle").textContent=title; $("#pdfFrame").src=url; new bootstrap.Modal($('#pdfModal')).show(); }
+
+/* ====== PDFs ====== */
+const PDF_FORM_URL  = 'consentimento.pdf';
+const PDF_TERMO_URL = 'termo.pdf';
+
+/* ====== Dados — KITS ARTROSCOPIA JOELHO ====== */
+const KITS_JOELHO = [
+  { nome:"ARTROSCOPIA JOELHO - MENISCECTOMIA ou SINOVECTOMIA (UNILATERAL)", itens:[
+    {item:"Lâmina de Shaver partes moles", fabricante:"SMITH & NEPHEW", ref:"7205313", qtd:1},
+    {item:"Equipo para bomba de infusão",  fabricante:"SMITH & NEPHEW", ref:"7211004", qtd:1},
+    {item:"Ponteira de radiofrequência",   fabricante:"SMITH & NEPHEW", ref:"ASC4250-01", qtd:1}
+  ]},
+  { nome:"ARTROSCOPIA JOELHO - REPARO/SUTURA DE MENISCO (UNILATERAL)", itens:[
+    {item:"Lâmina de Shaver partes moles", fabricante:"SMITH & NEPHEW", ref:"7205313", qtd:1},
+    {item:"Equipo para bomba de infusão",  fabricante:"SMITH & NEPHEW", ref:"7211004", qtd:1},
+    {item:"Ponteira de radiofrequência",   fabricante:"SMITH & NEPHEW", ref:"ASC4250-01", qtd:1},
+    {item:"Sutura de menisco all inside Fast Fix", fabricante:"SMITH & NEPHEW", ref:"72202468", qtd:2},
+    {item:"Cortador de nó Fast Fix", fabricante:"SMITH & NEPHEW", ref:"72202674", qtd:1}
+  ]},
+  { nome:"ARTROSCOPIA JOELHO - RECONSTRUÇÃO DE LCA COM ENXERTO DE TENDÕES FLEXORES (UNILATERAL) e SUTURA DO MENISCO", itens:[
+    {item:"Lâmina de Shaver", fabricante:"SMITH & NEPHEW", ref:"7205313", qtd:2},
+    {item:"Equipo para bomba de infusão", fabricante:"SMITH & NEPHEW", ref:"7211004", qtd:1},
+    {item:"Endobutton", fabricante:"SMITH & NEPHEW", ref:"7210080", qtd:1},
+    {item:"Broca do endobutton", fabricante:"SMITH & NEPHEW", ref:"7207315", qtd:1},
+    {item:"Parafuso de Interferência Absorvível", fabricante:"SMITH & NEPHEW", ref:"7207674", qtd:1},
+    {item:"Fio Guia ponta broca", fabricante:"SMITH & NEPHEW", ref:"7208678", qtd:1},
+    {item:"Fio Guia 4 furos", fabricante:"SMITH & NEPHEW", ref:"7211137", qtd:1},
+    {item:"Ponteira de radiofrequência", fabricante:"SMITH & NEPHEW", ref:"ASC4250-01", qtd:1},
+    {item:"Kit de Sutura de Menisco", fabricante:"SMITH & NEPHEW", ref:"72202468", qtd:2},
+    {item:"Cortador de nó Fast Fix", fabricante:"SMITH & NEPHEW", ref:"72202674", qtd:1}
+  ]},
+  { nome:"ARTROSCOPIA JOELHO - RECONSTRUÇÃO DE LCA COM ENXERTO DE TENDÃO PATELAR (UNILATERAL)", itens:[
+    {item:"Lâmina de Shaver", fabricante:"SMITH & NEPHEW", ref:"7205313", qtd:2},
+    {item:"Equipo para bomba de infusão", fabricante:"SMITH & NEPHEW", ref:"7211004", qtd:1},
+    {item:"Parafuso de Interferência Absorvível", fabricante:"SMITH & NEPHEW", ref:"7207674", qtd:2},
+    {item:"Fio Guia ponta broca", fabricante:"SMITH & NEPHEW", ref:"7208678", qtd:1},
+    {item:"Fio Guia 4 furos", fabricante:"SMITH & NEPHEW", ref:"7211137", qtd:1},
+    {item:"Ponteira de radiofrequência", fabricante:"SMITH & NEPHEW", ref:"ASC4250-01", qtd:1}
+  ]},
+  { nome:"ARTROSCOPIA JOELHO - RECONSTRUÇÃO DE LCP (UNILATERAL)", itens:[
+    {item:"Lâmina de Shaver", fabricante:"SMITH & NEPHEW", ref:"7205313", qtd:2},
+    {item:"Equipo para bomba de infusão", fabricante:"SMITH & NEPHEW", ref:"7211004", qtd:1},
+    {item:"Parafuso de Interferência Absorvível", fabricante:"SMITH & NEPHEW", ref:"7210080", qtd:1},
+    {item:"Endobutton", fabricante:"SMITH & NEPHEW", ref:"7210080", qtd:1},
+    {item:"Broca do endobutton", fabricante:"SMITH & NEPHEW", ref:"7207315", qtd:1},
+    {item:"Gore Smoother", fabricante:"SMITH & NEPHEW", ref:"14723", qtd:1},
+    {item:"Fio Guia ponta broca", fabricante:"SMITH & NEPHEW", ref:"7208678", qtd:1},
+    {item:"Fio Guia 4 furos", fabricante:"SMITH & NEPHEW", ref:"7211137", qtd:1},
+    {item:"Fio Guias para parafuso PCL", fabricante:"SMITH & NEPHEW", ref:"72201594", qtd:1},
+    {item:"Ponteira de radiofrequência", fabricante:"SMITH & NEPHEW", ref:"ASC4250-01", qtd:1}
+  ]}
+];
+
+/* ====== Lista Geral ====== */
+const LISTA_GERAL = [
+  {hdr:"ÂNCORAS", itens:[
+    {mat:"ÂNCORAS 3.0", marca:"SARTORI", valor:"R$ 500,00", fast:true},
+    {mat:"ÂNCORAS 4.0", marca:"SARTORI", valor:"R$ 500,00", fast:true}
+  ]},
+  {hdr:"PEQUENOS FRAGMENTOS EM AÇO", itens:[
+    {mat:"PLACA 1/3 TUBULAR 3.5 AÇO", marca:"TRAUMEDICA", valor:"R$ 90,00", fast:true},
+    {mat:"PARAFUSO CORTICAL 3.5 - EM MÉDIA 8 UNIDADES", marca:"TRAUMEDICA", valor:"R$ 160,00", fast:true},
+    {mat:"TOTAL", marca:"", valor:"R$ 250,00", total:true, fast:true}
+  ]},
+  {hdr:"PLACA A/C RETA 3.5", itens:[
+    {mat:"PLACA A/C RETA 3.5", marca:"TRAUMEDICA", valor:"R$ 120,00", fast:true},
+    {mat:"PARAFUSO ESPONJOSO 4.0 - EM MÉDIA 8 UNIDADES", marca:"TRAUMEDICA", valor:"R$ 160,00", fast:true},
+    {mat:"TOTAL", marca:"", valor:"R$ 280,00", total:true, fast:true}
+  ]},
+  {hdr:"GRANDES FRAGMENTOS EM AÇO", itens:[
+    {mat:"PLACA A/C LARGA 4.5 AÇO", marca:"TRAUMEDICA", valor:"R$ 160,00", fast:true},
+    {mat:"PARAFUSO CORTICAL 4.5 AÇO - EM MÉDIA 8 UNIDADES", marca:"TRAUMEDICA", valor:"R$ 160,00", fast:true},
+    {mat:"TOTAL", marca:"", valor:"R$ 320,00", total:true, fast:true}
+  ]},
+  {hdr:"PLACA A/C ESTREITA 4.5 AÇO", itens:[
+    {mat:"PLACA A/C ESTREITA 4.5 AÇO", marca:"TRAUMEDICA", valor:"R$ 140,00", fast:true},
+    {mat:"PARAFUSO ESPONJOSO 6.5 AÇO - EM MÉDIA 8 UNIDADES", marca:"TRAUMEDICA", valor:"R$ 160,00", fast:true},
+    {mat:"TOTAL", marca:"", valor:"R$ 300,00", total:true, fast:true}
+  ]},
+  {hdr:"FIO DE CERCLAGEM", itens:[
+    {mat:"FIO DE CERCLAGEM", marca:"IOL", valor:"R$ 40,00", fast:true}
+  ]},
+  {hdr:"PLACA TUBO", itens:[
+    {mat:"PLACA TUBO 95º SEM BLOQUEIO AÇO", marca:"TRAUMEDICA", valor:"R$ 500,00"},
+    {mat:"PARAFUSO CORTICAL 4.5 - EM MÉDIA 4 UNIDADES", marca:"TRAUMEDICA", valor:"R$ 80,00"},
+    {mat:"PARAFUSO DESLIZANTE", marca:"TRAUMEDICA", valor:"R$ 160,00"},
+    {mat:"CONTRA PARAFUSO", marca:"TRAUMEDICA", valor:"NÃO COBRADO"},
+    {mat:"FIO GUIA CALIBRADO COM ROSCA - EM MÉDIA 2 UNIDADES", marca:"TRAUMEDICA", valor:"R$ 60,00"},
+    {mat:"TOTAL", marca:"", valor:"R$ 800,00", total:true}
+  ]}
+];
+
+/* ====== Dados de referência para aba "Materiais & Protocolos" ====== */
+const OPME_KITS = {
+  "Ortopedia": KITS_JOELHO,      // reuso
+  "Cirurgia Geral": [
+    { nome:"Hernioplastia Inguinal", itens:[
+      { item:"Tela de polipropileno", codigo:"CG-HER-010", fabricante:"Medtronic", tipo:"Implante", qtde:1 },
+      { item:"Grampos/tackers",      codigo:"CG-HER-022", fabricante:"Covidien",  tipo:"Material", qtde:1 }
+    ]}
+  ]
+};
+const PROT = [
+  {nome:"Pré-operatório padrão adulto", resumo:"Checklist clínico e laboratorial."},
+  {nome:"Profilaxia antibiótica", resumo:"Esquemas por porte/campo operatório."},
+  {nome:"Jejum e preparo anestésico", resumo:"Orientações pré-indução."}
+];
+
+/* ====== Estado ====== */
+const tblOpmeBody = $("#tblOpme tbody");
+let modalCtx = { kit:null };
+
+/* ====== Procedimentos ====== */
+$("#btnAddProc").addEventListener("click", ()=>{
+  const desc=($("#procSearch").value||"").trim();
+  const qty=parseInt($("#procQty").value||"1",10);
+  if(!desc) return $("#procSearch").focus();
+  addProcRow(desc, qty); $("#procSearch").value=""; $("#procQty").value=1;
+});
+function addProcRow(desc, qty){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${desc}</td>
+    <td><input type="number" min="1" value="${qty}" class="form-control form-control-sm"></td>
+    <td><input class="form-control form-control-sm" placeholder="Observação"></td>
+    <td class="text-end"><button class="btn btn-sm btn-outline-uni"><i class="bi bi-trash"></i></button></td>`;
+  tr.querySelector('button').addEventListener('click',()=>tr.remove());
+  $("#tblProcs tbody").appendChild(tr);
+}
+
+/* Sugestões quando escolhe ARTROSCOPIA JOELHO */
+$("#procCombo").addEventListener("change", ()=>{
+  const v=$("#procCombo").value;
+  if(v==="ARTROSCOPIA JOELHO"){ renderSugKits(); $("#sugKitsWrap").style.display="block"; }
+  else { $("#sugKitsWrap").style.display="none"; }
+});
+function renderSugKits(){
+  const tbody = $('#sugKitsTable tbody'); tbody.innerHTML='';
+  KITS_JOELHO.forEach(k=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="kit-name">${k.nome}</td>
+      <td class="text-center"><span class="count-badge">${k.itens.length} itens</span></td>
+      <td class="text-end">
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-secondary" data-view><i class="bi bi-eye me-1"></i>Ver composição</button>
+          <button class="btn btn-uni" data-add><i class="bi bi-box-arrow-in-down-right me-1"></i>Incluir</button>
+        </div>
+      </td>`;
+    tr.querySelector('[data-view]').addEventListener('click',()=>openKitModal(k));
+    tr.querySelector('[data-add]').addEventListener('click',()=>applyKit(k, true)); // true => veio da sugestão
+    tbody.appendChild(tr);
+  });
+}
+
+/* ====== OPME: switch + modal ====== */
+const opmeModal = new bootstrap.Modal($("#opmeSearchModal"));
+$("#switchOPME").addEventListener("change",e=> $("#opmeArea").style.display = e.target.checked? "block":"none");
+$("#btnAbrirBusca").addEventListener("click", ()=>{ renderKitsModal(); renderListaGeral(); opmeModal.show(); });
+
+/* Abas do modal */
+function renderKitsModal(filter=""){
+  const tbody = $('#kitsTable tbody'); tbody.innerHTML='';
+  KITS_JOELHO.filter(k=>!filter || (k.nome+" "+k.itens.map(i=>i.item).join(" ")).toLowerCase().includes(filter.toLowerCase()))
+             .forEach(k=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="kit-name">${k.nome}</td>
+      <td class="text-center"><span class="count-badge">${k.itens.length} itens</span></td>
+      <td class="text-end">
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-secondary" data-view><i class="bi bi-eye me-1"></i>Ver composição</button>
+          <button class="btn btn-uni" data-add><i class="bi bi-box-arrow-in-down-right me-1"></i>Incluir</button>
+        </div>
+      </td>`;
+    tr.querySelector('[data-view]').addEventListener('click',()=>openKitModal(k));
+    tr.querySelector('[data-add]').addEventListener('click',()=>applyKit(k));
+    tbody.appendChild(tr);
+  });
+}
+$("#mBusca").addEventListener("input", e=> renderKitsModal(e.target.value));
+
+function renderListaGeral(filter=""){
+  const tbody=$("#tblGeral tbody"); tbody.innerHTML="";
+  LISTA_GERAL.forEach(gr=>{
+    // Se filtro não atingir o cabeçalho nem nenhum item, pula
+    const groupHas = !filter || gr.hdr.toLowerCase().includes(filter.toLowerCase()) ||
+      gr.itens.some(i=> (i.mat+i.marca).toLowerCase().includes(filter.toLowerCase()));
+    if(!groupHas) return;
+
+    const sep=document.createElement('tr');
+    sep.innerHTML=`<td colspan="5"><span class="section-cap"><i class="bi bi-diagram-3 me-1"></i>${gr.hdr}</span></td>`;
+    tbody.appendChild(sep);
+    gr.itens.forEach(i=>{
+      if(filter && !(gr.hdr+" "+i.mat+" "+(i.marca||"")).toLowerCase().includes(filter.toLowerCase()) && !i.total) {
+        // oculta itens que não batem (mantém totals se cabeçalho bateu)
+        if(!gr.hdr.toLowerCase().includes(filter.toLowerCase())) return;
+      }
+      const tr=document.createElement('tr'); tr.className = i.total ? 'table-active' : '';
+      tr.innerHTML = `
+        <td>${i.mat}</td>
+        <td>${i.marca||''}</td>
+        <td class="text-end money">${i.valor||''}</td>
+        <td>${i.fast?'<span class="fast-badge">FAST</span>':''}</td>
+        <td class="text-end">${i.total?'—':`<button class="btn btn-sm btn-uni" data-add>Adicionar</button>`}</td>`;
+      if(!i.total){
+        tr.querySelector('[data-add]').addEventListener('click', ()=>{
+          addOpmeRow({mat:i.mat, ref:'', fabricante:i.marca||'', tipo:'Material'}, 1);
+          toast('Item adicionado ao pedido.');
+        });
+      }
+      tbody.appendChild(tr);
+    });
+  });
+  if(!tbody.children.length){
+    const tr=document.createElement('tr'); tr.innerHTML=`<td colspan="5" class="text-center text-secondary-uni">Nenhum item encontrado.</td>`;
+    tbody.appendChild(tr);
+  }
+}
+$("#geralBusca").addEventListener("input", e=> renderListaGeral(e.target.value));
+
+/* ====== Drill-down do kit e inclusão ====== */
+const kitModal = new bootstrap.Modal($("#kitModal"));
+function openKitModal(kit){
+  modalCtx.kit = kit;
+  $("#kitMeta").innerHTML = `<strong>Kit:</strong> ${kit.nome} • <span class="text-secondary-uni">${kit.itens.length} itens</span>`;
+  const tb=$("#kitModalBody"); tb.innerHTML="";
+  kit.itens.forEach(i=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${i.item}</td><td>${i.fabricante}</td><td>${i.ref}</td><td class="text-center">${i.qtd}</td>`;
+    tb.appendChild(tr);
+  });
+  kitModal.show();
+}
+$("#modalApplyBtn").addEventListener("click", ()=>{ if(modalCtx.kit){ applyKit(modalCtx.kit); kitModal.hide(); }});
+
+function applyKit(kit, fromSuggestion=false){
+  // Se veio da sugestão, liga OPME automaticamente
+  if(fromSuggestion){
+    const sw = $("#switchOPME");
+    if(!sw.checked){ sw.checked = true; $("#opmeArea").style.display = "block"; }
+  }
+  const head=document.createElement('tr'); head.className='table-active';
+  head.innerHTML=`<td colspan="6"><i class="bi bi-box2-fill me-1"></i><strong>${kit.nome}</strong> — adicionado</td>`;
+  tblOpmeBody.appendChild(head);
+  kit.itens.forEach(i=> addOpmeRow({mat:i.item, ref:i.ref, fabricante:i.fabricante, tipo:'Material'}, i.qtd));
+  toast('Kit incluído no pedido.');
+}
+function addOpmeRow(i, qtd){
+  const tr=document.createElement('tr');
+  tr.innerHTML = `<td>${i.mat}</td><td>${i.ref||''}</td><td>${i.fabricante||''}</td><td>${i.tipo||'Material'}</td>
+                  <td><input type="number" min="0" value="${qtd||1}" class="form-control form-control-sm"></td>
+                  <td class="text-end"><button class="btn btn-sm btn-outline-uni"><i class="bi bi-x-lg"></i></button></td>`;
+  tr.querySelector('button').addEventListener('click',()=>tr.remove());
+  tblOpmeBody.appendChild(tr);
+}
+
+/* ====== Aba Materiais & Protocolos ====== */
+const mpEsp=$("#mpEsp"), mpBusca=$("#mpBusca"), tblKitsBody=$("#tblKits tbody");
+const allEsps=Object.keys(OPME_KITS);
+allEsps.forEach(e=>{ const o=document.createElement('option'); o.value=e; o.textContent=e; mpEsp.appendChild(o); });
+mpEsp.addEventListener('change', refreshKits); mpBusca.addEventListener('input', refreshKits);
+refreshKits();
+function refreshKits(){
+  const filtro=(mpEsp.value||"").toLowerCase(), q=(mpBusca.value||"").toLowerCase();
+  tblKitsBody.innerHTML="";
+  allEsps.forEach(esp=>{
+    OPME_KITS[esp].forEach(kit=>{
+      const text=(kit.nome+" "+esp+" "+(kit.itens||[]).map(i=>i.item).join(" ")).toLowerCase();
+      if((!filtro || esp.toLowerCase()===filtro) && (!q || text.includes(q))){
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${kit.nome}</td><td>${esp}</td><td>${(kit.itens||[]).length}</td>
+                      <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary me-1" data-view>Ver composição</button>
+                        <button class="btn btn-sm btn-uni" data-apply>Aplicar</button>
+                      </td>`;
+        tr.querySelector('[data-view]').addEventListener('click',()=>openKitModal(kit));
+        tr.querySelector('[data-apply]').addEventListener('click',()=>applyKit(kit, true)); // aplicar também ativa OPME
+        tblKitsBody.appendChild(tr);
+      }
+    });
+  });
+  if(!tblKitsBody.children.length){
+    const tr=document.createElement('tr'); tr.innerHTML=`<td colspan="4" class="text-center text-secondary-uni">Nenhum kit encontrado.</td>`;
+    tblKitsBody.appendChild(tr);
+  }
+}
+/* Protocolos */
+function renderProt(){ const ul=$("#listaProtocolos"); const q=($("#protoBusca").value||"").toLowerCase(); ul.innerHTML="";
+  PROT.filter(p=>!q||(p.nome+p.resumo).toLowerCase().includes(q)).forEach(p=>{
+    const li=document.createElement('li'); li.className="list-group-item d-flex justify-content-between align-items-start";
+    li.innerHTML=`<div><div class="fw-semibold">${p.nome}</div><div class="text-secondary-uni small">${p.resumo}</div></div>`;
+    ul.appendChild(li);
+  });
+  if(!ul.children.length){ const li=document.createElement("li"); li.className="list-group-item text-center text-secondary-uni"; li.textContent="Nenhum protocolo encontrado."; ul.appendChild(li); }
+}
+$("#protoBusca").addEventListener('input', renderProt); renderProt();
+
+/* ====== PDFs e assinatura ====== */
+$('[data-action="viewForm"]').addEventListener('click',()=>openPdf('Formulário de Avaliação (PDF oficial)', PDF_FORM_URL));
+$('#downloadForm').href = PDF_FORM_URL;
+$('#btnLerTermo').addEventListener('click',()=>openPdf('Termo de Consentimento (PDF oficial)', PDF_TERMO_URL));
+$('#btnCopiarLink').addEventListener('click',async()=>{ try{ await navigator.clipboard.writeText(PDF_TERMO_URL); toast('Link do termo copiado.'); }catch(e){ toast('Não foi possível copiar automaticamente.', 'warning'); } });
+function onlyDigits(s){ return (s||'').replace(/\D/g,''); }
+function buildMsg(){ const nome=$("#av_nome").value||"Paciente"; return `Olá ${nome}, segue o Termo de Consentimento para leitura e assinatura: ${PDF_TERMO_URL}`; }
+$('#btnSendWhats').addEventListener('click',()=>{ const tel=onlyDigits(prompt("Número de WhatsApp (DDD+Número):","")); if(!tel){ toast('Número inválido.','warning'); return; } const msg=encodeURIComponent(buildMsg()); window.open(`https://wa.me/55${tel}?text=${msg}`,'_blank'); });
+$('#btnSendEmail').addEventListener('click',()=>{ const email=prompt("E-mail do paciente:",""); if(!email){ toast('E-mail inválido.','warning'); return; } const subj=encodeURIComponent('Termo de Consentimento — assinatura'); const body=encodeURIComponent(buildMsg()); window.location.href=`mailto:${email}?subject=${subj}&body=${body}`; });
+
+(function(){ // assinatura
+  const canvas=$("#sigPad"), box=$("#sigBox"); if(!canvas) return; const ctx=canvas.getContext('2d'); let drawing=false, saved=null;
+  function resize(){ const r=box.getBoundingClientRect(), ratio=window.devicePixelRatio||1; canvas.width=r.width*ratio; canvas.height=r.height*ratio; canvas.style.width=r.width+'px'; canvas.style.height=r.height+'px'; ctx.setTransform(1,0,0,1,0,0); ctx.scale(ratio,ratio); ctx.lineWidth=2; ctx.lineCap='round'; ctx.strokeStyle='#004e4c'; }
+  resize(); window.addEventListener('resize',resize);
+  const pos=e=>{ const t=e.touches?.[0]||e, r=canvas.getBoundingClientRect(); return {x:t.clientX-r.left, y:t.clientY-r.top}; };
+  const start=e=>{ drawing=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); e.preventDefault(); };
+  const move =e=>{ if(!drawing) return; const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); e.preventDefault(); };
+  const end  =()=>{ drawing=false; };
+  canvas.addEventListener('mousedown',start); canvas.addEventListener('mousemove',move); canvas.addEventListener('mouseup',end); canvas.addEventListener('mouseleave',end);
+  canvas.addEventListener('touchstart',start,{passive:false}); canvas.addEventListener('touchmove',move,{passive:false}); canvas.addEventListener('touchend',end);
+  $('#sigClear').addEventListener('click',()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); $('#sigPreview').textContent=''; saved=null; });
+  $('#sigSave').addEventListener('click',()=>{ saved=canvas.toDataURL('image/png'); $('#sigPreview').innerHTML=`<span class="badge bg-success"><i class="bi bi-check2 me-1"></i>Assinatura salva</span>`; });
+  window.__getSignature=()=>saved;
+})();
+
+/* ====== Ações gerais ====== */
+$('#btnLimpar').addEventListener('click', ()=>{
+  ['procSearch','indicacao','observacao','cid','localHosp','av_nome','av_dt_nasc','av_dt_inter','av_hr_inter','cm_outros_txt','alerg_qual','med_uso','hip_diag','proc_plan','hist_clin','ex_fis','tempo_perm_prev','dt_preench','med_crm','revalid_por','revalid_data'].forEach(id=>{ const el=$("#"+id); if(el) el.value=''; });
+  ['cm_hip','cm_dm','cm_cardio','cm_obes','cm_hipot','cm_outros','fat_etil','fat_tab','fat_droga','alerg_sim','alerg_nao','lat_dir','lat_esq','lat_na'].forEach(id=>{ const el=$("#"+id); if(el) el.checked=false; });
+  $('#procQty').value=1; $('#hrInter').value=''; $('#dtInter').value=''; $('#diarias').value=0;
+  $("#tblProcs tbody").innerHTML=''; $("#tblOpme tbody").innerHTML='';
+  $("#switchOPME").checked=false; $("#opmeArea").style.display='none'; $("#sugKitsWrap").style.display='none'; $("#procCombo").value='';
+  toast('Formulário limpo.');
+});
+$('#btnSalvar').addEventListener('click', ()=>{
+  const payload = {
+    procedimentos: $$("#tblProcs tbody tr").map(tr=>({descricao: tr.children[0].innerText, qtde: tr.children[1].querySelector('input').value, obs: tr.children[2].querySelector('input').value})),
+    opme: $$("#tblOpme tbody tr").filter(tr=>!tr.classList.contains('table-active')).map(tr=>({item: tr.children[0].innerText, codigo: tr.children[1].innerText, fabricante: tr.children[2].innerText, tipo: tr.children[3].innerText, qtde: tr.children[4].querySelector('input').value})),
+    dados: {indicacao:$("#indicacao").value, observacao:$("#observacao").value, cid:$("#cid").value, data:$("#dtInter").value, hora:$("#hrInter").value, diarias:$("#diarias").value, hospital:$("#localHosp").value}
+  };
+  console.log('Payload:', payload);
+  toast('Solicitação salva (console). Integre com o backend.');
+});
+
+/* Inicializações */
+renderListaGeral(); // primeira render da lista geral (sem filtro)
+</script>
+</body>
+</html>
